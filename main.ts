@@ -222,6 +222,46 @@ export default class MyPlugin extends Plugin {
 		this.saveAllData()
 	}
 
+	async scanCurrentFile() {
+		console.info("Checking connection to Anki...")
+		try {
+			await AnkiConnect.invoke('modelNames')
+		}
+		catch(e) {
+			new Notice("Error, couldn't connect to Anki! Check console for error message.")
+			return
+		}
+		
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			new Notice("No file is currently open!")
+			return
+		}
+
+		new Notice("Successfully connected to Anki!")
+		const data: ParsedSettings = await settingToData(this.app, this.settings, this.fields_dict)
+		
+		const manager = new FileManager(
+			this.app, 
+			data, 
+			[activeFile],
+			this.file_hashes,
+			this.added_media
+		);
+
+		await manager.initialiseFiles()
+		await manager.requests_1()
+		
+		this.added_media = Array.from(manager.added_media_set)
+		const hashes = manager.getHashes()
+		for (let key in hashes) {
+			this.file_hashes[key] = hashes[key]
+		}
+		
+		new Notice("Current file processed! Saving file hashes and added media...")
+		this.saveAllData()
+	}
+
 	async onload() {
 		console.log('loading Obsidian_to_Anki...');
 		addIcon('anki', ANKI_ICON)
@@ -263,6 +303,14 @@ export default class MyPlugin extends Plugin {
 			 	await this.scanVault()
 			 }
 		})
+
+		this.addCommand({
+			id: 'anki-scan-current-file',
+			name: 'Scan Current File',
+			callback: async () => {
+				await this.scanCurrentFile()
+			}
+		});
 	}
 
 	async onunload() {
